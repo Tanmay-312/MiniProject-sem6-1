@@ -2,13 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
+	"github.com/gofiber/fiber/v2"
 	_ "github.com/lib/pq"
 )
 
@@ -30,16 +28,12 @@ func main() {
 	}
 	defer db.Close()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/register", RegisterHandler(db)).Methods("POST")
-	router.HandleFunc("/login", LoginHandler(db)).Methods("POST")
+	app := fiber.New()
 
-	// Enable CORS
-	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
-	originsOk := handlers.AllowedOrigins([]string{"*"})
-	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"})
+	app.Post("/register", RegisterHandler(db))
+	app.Post("/login", LoginHandler(db))
 
-	log.Fatal(http.ListenAndServe(":8080", handlers.CORS(originsOk, headersOk, methodsOk)(router)))
+	log.Fatal(app.Listen(":8080"))
 }
 
 type User struct {
@@ -47,52 +41,42 @@ type User struct {
 	Password string `json:"password"`
 }
 
-func RegisterHandler(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func RegisterHandler(db *sql.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		var user User
-		err := json.NewDecoder(r.Body).Decode(&user)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		if err := c.BodyParser(&user); err != nil {
+			return c.Status(http.StatusBadRequest).SendString(err.Error())
 		}
 
-		_, err = db.Exec("INSERT INTO login_info (username, password) VALUES ($1, $2)", user.Username, user.Password)
+		_, err := db.Exec("INSERT INTO login_info (username, password) VALUES ($1, $2)", user.Username, user.Password)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return c.Status(http.StatusInternalServerError).SendString(err.Error())
 		}
 
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{"message": "User registered successfully"})
+		return c.Status(http.StatusCreated).JSON(map[string]string{"message": "User registered successfully"})
 	}
 }
 
-func LoginHandler(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func LoginHandler(db *sql.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		var user User
-		err := json.NewDecoder(r.Body).Decode(&user)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		if err := c.BodyParser(&user); err != nil {
+			return c.Status(http.StatusBadRequest).SendString(err.Error())
 		}
 
 		var storedUsername, storedPassword string
-		err = db.QueryRow("SELECT username, password FROM login_info WHERE username = $1", user.Username).Scan(&storedUsername, &storedPassword)
+		err := db.QueryRow("SELECT username, password FROM login_info WHERE username = $1", user.Username).Scan(&storedUsername, &storedPassword)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				http.Error(w, "User not found", http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return c.Status(http.StatusNotFound).SendString("User not found")
 			}
-			return
+			return c.Status(http.StatusInternalServerError).SendString(err.Error())
 		}
 
 		if storedPassword != user.Password {
-			http.Error(w, "Incorrect password", http.StatusUnauthorized)
-			return
+			return c.Status(http.StatusUnauthorized).SendString("Incorrect password")
 		}
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message": "User logged in successfully"})
+		return c.Status(http.StatusOK).JSON(map[string]string{"message": "User logged in successfully"})
 	}
 }
