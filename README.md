@@ -27,8 +27,8 @@ Before you begin, ensure you have the following installed:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
-   cd your-repo-name/frontend
+   git clone https://github.com/Tanmay-312/MiniProject-sem6-1.git
+   cd MiniProject-sem6-1/client
    ```
 
 2. Install dependencies:
@@ -48,7 +48,7 @@ Before you begin, ensure you have the following installed:
 1. Navigate to the backend directory:
 
    ```bash
-   cd ../backend
+   cd ../server
    ```
 
 2. Build the Go application:
